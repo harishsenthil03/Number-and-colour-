@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Color & Number Game Analyzer – AI + Serial</title>
+<style>
+body{font-family:Arial;background:#f2f2f2;padding:15px}
+.card{background:#fff;padding:12px;margin-bottom:12px;border-radius:8px}
+.badge{padding:6px 10px;color:#fff;border-radius:6px;margin:3px;display:inline-block}
+.red{background:#e3342f}
+.green{background:#38b000}
+.blue{background:#2563eb}
+.yellow{background:#facc15;color:#000}
+.black{background:#111}
+.white{color:#fff;background:#777}
+.result-btn{padding:10px 16px;margin:3px;border:none;border-radius:8px;color:#fff;font-weight:bold;cursor:pointer;font-size:12px}
+.strength-box{width:100%;height:14px;background:#e5e7eb;border-radius:10px;overflow:hidden;margin-top:4px}
+#strengthBar{height:100%;width:0%;background:#ef4444;transition:0.3s}
+button{padding:6px 12px;margin:3px;}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{border:1px solid #ccc;padding:6px;text-align:center}
+th{background:#eee}
+.win{color:green;font-weight:bold}
+.loss{color:red;font-weight:bold}
+</style>
+</head>
+<body>
+
+<h2>🎯 Color & Number Game Analyzer – AI + Serial</h2>
+
+<div class="card">
+Start Serial #: <input id="startSerial" type="number" value="1">
+<button onclick="setSerial()">Set</button>
+Capital ₹: <input id="capital" type="number" value="1000">
+Base Bet %: <input id="baseBet" type="number" value="2">
+Safe Loss Limit: <input id="safeLimit" type="number" value="3">
+Current Level: <span id="currentLevel">1</span>
+<button onclick="clearAll()" style="background:#ef4444;color:#fff">CLEAR</button>
+</div>
+
+<div class="card">
+<select id="game" onchange="changeGame()">
+<option value="RG">Red / Green</option>
+<option value="BY">Blue / Yellow</option>
+<option value="BW">Black / White</option>
+</select>
+
+<p>
+AI Color Signal: <b id="signal">-</b><br>
+AI Number Signal: <b id="numberSignal">-</b><br>
+Pattern: <b id="reason">-</b><br>
+Confidence: <b id="confidence">-</b><br>
+AI Probability: <b id="probability">0%</b><br>
+Suggested Bet ₹: <b id="suggestBet">0</b>
+</p>
+
+<div class="strength-box">
+ <div id="strengthBar"></div>
+</div>
+<small><span id="strengthText">0</span>/100</small>
+</div>
+
+<div class="card">
+<h4>🎮 Select Result (Color + Number)</h4>
+<div id="resultButtons"></div>
+</div>
+
+<div class="card">
+<h4>🧩 Enter Last 10-20 Results (Color Number)</h4>
+<textarea id="bulkInput" rows="3" style="width:100%" placeholder="Red 5 Green 2 Red 8 ..."></textarea><br><br>
+<button onclick="analyzeBulk()">Analyze</button>
+</div>
+
+<div class="card">
+<h4>📊 Trend (Last 10)</h4>
+<div id="trend"></div>
+</div>
+
+<div class="card">
+<h4>📈 Pattern Accuracy (Color Only)</h4>
+<table id="patternTable">
+<thead><tr><th>Pattern</th><th>Total</th><th>Wins</th><th>Accuracy %</th></tr></thead>
+<tbody></tbody>
+</table>
+</div>
+
+<div class="card">
+<h4>📜 Result History</h4>
+<table>
+<thead><tr>
+<th>Serial</th><th>Time</th><th>Game</th>
+<th>AI Color</th><th>Actual Color</th><th>Color Result</th>
+<th>AI Number</th><th>Actual Number</th><th>Number Result</th>
+<th>Pattern</th><th>Confidence</th><th>Prob %</th><th>Bet ₹</th>
+</tr></thead>
+<tbody id="history"></tbody>
+</table>
+</div>
+
+<script>
+let data={RG:[],BY:[],BW:[]},game="RG",patternStats={},currentLevel=1,consecutiveLoss=0,totalPnL=0,serialNo=Number(document.getElementById("startSerial").value),history=[];
+
+function colors(){if(game==="RG")return["Red","Green"];if(game==="BY")return["Blue","Yellow"];return["Black","White"];}
+function mapAB(arr){let c=colors();return arr.map(x=>x===c[0]?"A":"B").join("")}
+
+// Pattern rules
+const patternRules=[{name:"AB",rule:/^(AB){3,}$/,next:"A",weight:20},{name:"AABB",rule:/^(AABB){2,}$/,next:"A",weight:30},{name:"AAABBB",rule:/^(AAABBB)+$/,next:"A",weight:45},{name:"AAAABBBB",rule:/^(AAAABBBB)+$/,next:"A",weight:60},{name:"BLOCK",rule:/A{3,}B{3,}$/,next:"A",weight:40},{name:"BLOCK-R",rule:/B{3,}A{3,}$/,next:"B",weight:40},{name:"ABB",rule:/^(ABB){2,}$/,next:"A",weight:25},{name:"ABBA",rule:/^(ABBA){2,}$/,next:"A",weight:35},{name:"AAB",rule:/^(AAB){2,}$/,next:"B",weight:30},{name:"ABAAB",rule:/^(ABAAB){2,}$/,next:"A",weight:40}];
+
+function patternStrength(seq,r){let len=Math.min(seq.length*2,40);let cons=Math.min(seq.match(r.rule)[0].length*3,20);return Math.min(len+r.weight+cons,100)}
+
+// AI Prediction
+function aiPrediction(){
+ let h=data[game].slice(-30);
+ let c=colors();
+ if(h.length<1) return {best:c[0],number:Math.floor(Math.random()*10),score:20,conf:"LOW",reason:"FALLBACK",prob:50};
+
+ let recent=h.slice(-10).map(x=>x.color);
+ let countA=recent.filter(x=>x===c[0]).length;
+ let countB=recent.filter(x=>x===c[1]).length;
+ let trend=countA>=countB?c[0]:c[1];
+ let trendScore=Math.min(Math.abs(countA-countB)*15,50);
+
+ let ab=mapAB(recent);
+ for(let r of patternRules){
+   if(r.rule.test(ab)){
+     let pick=r.next==="A"?c[0]:c[1];
+     let prob=Math.min(patternStrength(ab,r)+trendScore,100);
+     let conf=prob>=70?"HIGH":prob>=40?"MEDIUM":"LOW";
+     return {best:pick,number:Math.floor(Math.random()*10),score:prob,conf:conf,reason:r.name+" + TREND",prob:prob};
+   }
+ }
+ let prob=trendScore+20;
+ let conf=prob>=70?"HIGH":prob>=40?"MEDIUM":"LOW";
+ return {best:trend,number:Math.floor(Math.random()*10),score:prob,conf:conf,reason:"TREND ONLY",prob:prob};
+}
+
+function calculateBet(){
+ let cap=Number(document.getElementById("capital").value);
+ let base=Number(document.getElementById("baseBet").value)/100;
+ let safe=Number(document.getElementById("safeLimit").value);
+ if(consecutiveLoss>=safe) return 0;
+ return Math.round(cap*base*Math.pow(1.4,consecutiveLoss));
+}
+
+function submitManual(resColor,resNumber){
+ data[game].push({color:resColor,number:resNumber});
+ let s=aiPrediction();
+ let bet=calculateBet();
+ document.getElementById("suggestBet").innerText=bet;
+
+ // Pattern stats only for color
+ if(!patternStats[s.reason]) patternStats[s.reason]={total:0,wins:0};
+ patternStats[s.reason].total++;
+ if(s.best===resColor) patternStats[s.reason].wins++;
+
+ let colorWin=s.best===resColor;
+ let numberWin=s.number===resNumber;
+
+ if(colorWin){consecutiveLoss=0;currentLevel=1;totalPnL+=bet;}else{consecutiveLoss++;currentLevel=Math.min(10,currentLevel+1);totalPnL-=bet;}
+
+ document.getElementById("currentLevel").innerText=currentLevel;
+
+ let row=`<tr>
+<td>${serialNo}</td>
+<td>${new Date().toLocaleTimeString()}</td>
+<td>${game}</td>
+<td>${s.best}</td>
+<td style="color:${colorWin?"green":"red"}">${resColor}</td>
+<td class="${colorWin?"win":"loss"}">${colorWin?"Win":"Loss"}</td>
+<td>${s.number}</td>
+<td style="color:${numberWin?"green":"red"}">${resNumber}</td>
+<td class="${numberWin?"win":"loss"}">${numberWin?"Win":"Loss"}</td>
+<td>${s.reason}</td>
+<td>${s.conf}</td>
+<td>${s.prob.toFixed(0)}%</td>
+<td>${bet}</td>
+</tr>`;
+ history.unshift(row); history=history.slice(0,50);
+ document.getElementById("history").innerHTML=history.join("");
+
+ serialNo++;
+ document.getElementById("startSerial").value=serialNo;
+
+ update();
+ updatePatternStats();
+}
+
+function analyzeBulk(){
+ let input=document.getElementById("bulkInput").value.trim();
+ if(!input){alert("Enter results");return}
+ let arr=input.replace(/,/g," ").split(/\s+/);
+ if(arr.length%2!==0){alert("Each color must have a number");return}
+ let valid=colors();
+ data[game]=[];
+ for(let i=0;i<arr.length;i+=2){
+   let col=arr[i]; let num=Number(arr[i+1]);
+   if(!valid.includes(col) || isNaN(num) || num<0 || num>9){alert("Invalid input: "+col+" "+arr[i+1]);return}
+   data[game].push({color:col,number:num});
+ }
+ update();
+ updatePatternStats();
+}
+
+function renderButtons(){
+ let box=document.getElementById("resultButtons");box.innerHTML="";
+ colors().forEach(c=>{
+   for(let n=0;n<=9;n++){
+     box.innerHTML+=`<button class="result-btn ${c.toLowerCase()}" onclick="submitManual('${c}',${n})">${c} ${n}</button>`
+   }
+ })
+}
+
+function update(){
+ let t=document.getElementById("trend");t.innerHTML="";
+ colors().forEach(c=>{
+   let n=data[game].slice(-10).filter(x=>x.color===c).length;
+   t.innerHTML+=`<span class="badge ${c.toLowerCase()}">${c}:${n}</span>`;
+ });
+
+ let s=aiPrediction();
+ document.getElementById("signal").innerText=s.best;
+ document.getElementById("numberSignal").innerText=s.number;
+ document.getElementById("confidence").innerText=s.conf;
+ document.getElementById("reason").innerText=s.reason;
+ document.getElementById("probability").innerText=s.prob.toFixed(0)+"%";
+
+ let bar=document.getElementById("strengthBar");bar.style.width=s.score+"%";
+ document.getElementById("strengthText").innerText=s.score;
+ bar.style.background=s.score>=70?"#22c55e":s.score>=40?"#facc15":"#ef4444";
+
+ renderButtons();
+}
+
+function updatePatternStats(){
+ let tbody=document.querySelector("#patternTable tbody");
+ tbody.innerHTML="";
+ for(let key in patternStats){
+   let stats=patternStats[key];
+   let acc = stats.total>0 ? ((stats.wins/stats.total)*100).toFixed(1) : 0;
+   tbody.innerHTML+=`<tr>
+      <td>${key}</td>
+      <td>${stats.total}</td>
+      <td>${stats.wins}</td>
+      <td>${acc}%</td>
+    </tr>`;
+ }
+}
+
+function changeGame(){game=document.getElementById("game").value;update();}
+function setSerial(){let v=Number(document.getElementById("startSerial").value);if(v<=0)return;serialNo=v;alert("Serial set to "+serialNo)}
+function clearAll(){if(!confirm("Clear all & restart?"))return;location.reload();}
+
+renderButtons();update();
+</script>
+</body>
+</html>
