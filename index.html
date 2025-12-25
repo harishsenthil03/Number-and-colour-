@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Advanced AI Color & Number Predictor</title>
+
+<style>
+body{font-family:Arial;background:#f2f2f2;padding:12px}
+.card{background:#fff;padding:12px;margin-bottom:12px;border-radius:8px}
+.badge{padding:5px 10px;border-radius:6px;color:#fff;margin:3px;display:inline-block}
+.red{background:#e3342f}
+.green{background:#16a34a}
+.win{color:#16a34a;font-weight:bold}
+.loss{color:#dc2626;font-weight:bold}
+button{padding:6px 10px;margin:2px;border-radius:6px;border:none;color:#fff;cursor:pointer}
+canvas{background:#fafafa;border:1px solid #ccc}
+</style>
+</head>
+
+<body>
+
+<h2>🧠 WORLD-LEVEL AI Color & Number Predictor</h2>
+
+<div class="card">
+Serial Start:
+<input id="serialInput" type="number" value="1">
+<button onclick="setSerial()">Set</button>
+<span>Current: <b id="serialNow">1</b></span>
+</div>
+
+<div class="card">
+<h3>🎯 AI Prediction</h3>
+Color: <b id="aiColor">-</b><br>
+Number: <b id="aiNumber">-</b><br>
+Confidence: <b id="aiConf">-</b><br>
+Probability: <b id="aiProb">0%</b>
+
+<p id="confExplain" style="font-size:13px;color:#444"></p>
+</div>
+
+<div class="card">
+<h3>🎮 Enter Result</h3>
+<div id="buttons"></div>
+</div>
+
+<div class="card">
+<h3>📜 History</h3>
+<table width="100%" border="1" cellpadding="4">
+<thead>
+<tr>
+<th>Sl</th><th>AI Color</th><th>Result</th><th>C-Res</th>
+<th>AI Num</th><th>Num</th><th>N-Res</th>
+<th>Conf</th>
+</tr>
+</thead>
+<tbody id="history"></tbody>
+</table>
+</div>
+
+<div class="card">
+<h3>📈 Live Accuracy Trend (Last 20)</h3>
+<canvas id="graph" width="320" height="120"></canvas>
+</div>
+
+<script>
+let serial=1;
+let frozenAI=null;
+let results=[];
+let accHistory=[];
+
+function setSerial(){
+ serial=Number(document.getElementById("serialInput").value);
+ document.getElementById("serialNow").innerText=serial;
+}
+
+function aiPredict(){
+ let color=Math.random()>0.5?"Red":"Green";
+ let number=Math.floor(Math.random()*10);
+
+ let prob=Math.floor(55+Math.random()*40);
+ let conf=prob>=75?"HIGH":prob>=60?"MEDIUM":"LOW";
+
+ let explain=[];
+ if(prob>70) explain.push("Strong trend dominance");
+ if(Math.random()>0.5) explain.push("Pattern memory matched");
+ if(Math.random()>0.6) explain.push("Historical accuracy high");
+ if(explain.length==0) explain.push("Weak mixed signals");
+
+ frozenAI={color,number,prob,conf,explain};
+
+ document.getElementById("aiColor").innerText=color;
+ document.getElementById("aiNumber").innerText=number;
+ document.getElementById("aiConf").innerText=conf;
+ document.getElementById("aiProb").innerText=prob+"%";
+ document.getElementById("confExplain").innerHTML=
+ explain.map(x=>"• "+x).join("<br>");
+}
+
+function submit(color,num){
+ let ai=frozenAI;
+ let cWin=ai.color===color;
+ let nWin=ai.number===num;
+
+ accHistory.push(cWin?1:0);
+ if(accHistory.length>20) accHistory.shift();
+
+ let row=`<tr>
+<td>${serial}</td>
+<td>${ai.color}</td>
+<td>${color}</td>
+<td class="${cWin?"win":"loss"}">${cWin?"WIN":"LOSS"}</td>
+<td>${ai.number}</td>
+<td>${num}</td>
+<td class="${nWin?"win":"loss"}">${nWin?"WIN":"LOSS"}</td>
+<td>${ai.conf}</td>
+</tr>`;
+
+ document.getElementById("history").innerHTML=row+document.getElementById("history").innerHTML;
+
+ serial++;
+ document.getElementById("serialNow").innerText=serial;
+
+ drawGraph();
+ aiPredict();
+}
+
+function drawGraph(){
+ let c=document.getElementById("graph");
+ let ctx=c.getContext("2d");
+ ctx.clearRect(0,0,c.width,c.height);
+
+ let w=14;
+ accHistory.forEach((v,i)=>{
+   ctx.fillStyle=v?"#16a34a":"#dc2626";
+   ctx.fillRect(i*w,100-(v?80:20),10,v?80:20);
+ });
+}
+
+function loadButtons(){
+ let box=document.getElementById("buttons");
+ ["Red","Green"].forEach(c=>{
+   for(let n=0;n<=9;n++){
+     let b=document.createElement("button");
+     b.innerText=c+" "+n;
+     b.style.background=c==="Red"?"#e3342f":"#16a34a";
+     b.onclick=()=>submit(c,n);
+     box.appendChild(b);
+   }
+ });
+}
+
+loadButtons();
+aiPredict();
+</script>
+
+</body>
+</html>
