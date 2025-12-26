@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>World Level AI Color + Number Predictor</title>
+<style>
+body{font-family:Arial;background:#f3f4f6;padding:12px}
+.card{background:#fff;padding:12px;margin-bottom:12px;border-radius:8px}
+h3{margin:5px 0}
+.badge{padding:6px 10px;border-radius:6px;color:#fff;margin:3px;display:inline-block}
+.red{background:#dc2626}
+.green{background:#16a34a}
+.blue{background:#2563eb}
+.yellow{background:#facc15;color:#000}
+.black{background:#111}
+.white{background:#6b7280}
+
+.btn{padding:10px 14px;margin:4px;border:none;border-radius:8px;color:#fff;font-weight:bold}
+.numBtn{background:#374151}
+.win{color:green;font-weight:bold}
+.loss{color:red;font-weight:bold}
+
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{border:1px solid #ccc;padding:5px;text-align:center}
+th{background:#eee}
+
+canvas{width:100%;height:120px}
+</style>
+</head>
+<body>
+
+<h2>🌍 World Level AI – Color + Number</h2>
+
+<div class="card">
+Serial #: <input id="serialInput" type="number" value="1">
+<button onclick="setSerial()">Set</button>
+</div>
+
+<div class="card">
+<h3>🎯 AI Prediction</h3>
+Color: <b id="aiColor">-</b><br>
+Number: <b id="aiNumber">-</b><br>
+Confidence: <b id="aiConf">-</b><br>
+Probability: <b id="aiProb">0%</b>
+<p id="confExplain" style="font-size:12px;color:#374151"></p>
+</div>
+
+<div class="card">
+<h3>🎮 ONE TAP RESULT</h3>
+<b>Color</b><br>
+<button class="btn red" onclick="pickColor('Red')">Red</button>
+<button class="btn green" onclick="pickColor('Green')">Green</button>
+<br><br>
+<b>Number</b><br>
+<div id="numBtns"></div>
+</div>
+
+<div class="card">
+<h3>📈 Live Accuracy Trend</h3>
+<canvas id="accChart" width="300" height="120"></canvas>
+</div>
+
+<div class="card">
+<h3>📜 History</h3>
+<table>
+<thead>
+<tr>
+<th>Sr</th><th>AI Color</th><th>Result</th><th>C-W/L</th>
+<th>AI No</th><th>No</th><th>N-W/L</th><th>Conf</th>
+</tr>
+</thead>
+<tbody id="history"></tbody>
+</table>
+</div>
+
+<script>
+let serial=1;
+let selectedColor=null;
+let selectedNumber=null;
+let history=[];
+let accTrend=[];
+let data=[];
+
+function setSerial(){
+ serial=Number(document.getElementById("serialInput").value);
+}
+
+function pickColor(c){selectedColor=c;checkSubmit();}
+function pickNumber(n){selectedNumber=n;checkSubmit();}
+
+function checkSubmit(){
+ if(selectedColor!==null && selectedNumber!==null){
+   submitResult();
+ }
+}
+
+function aiPredict(){
+ let colors=["Red","Green"];
+ if(data.length<5){
+   return {color:colors[Math.floor(Math.random()*2)],num:Math.floor(Math.random()*10),conf:"LOW",prob:40,exp:"Not enough data"};
+ }
+
+ let last10=data.slice(-10);
+ let redCount=last10.filter(x=>x.color==="Red").length;
+ let greenCount=10-redCount;
+
+ let trendColor=redCount>greenCount?"Red":"Green";
+ let trendScore=Math.abs(redCount-greenCount)*5;
+
+ let streak=0;
+ for(let i=data.length-1;i>0;i--){
+   if(data[i].color===data[i-1].color) streak++;
+   else break;
+ }
+
+ let exhaustion = streak>=4;
+ let finalColor = exhaustion ? (trendColor==="Red"?"Green":"Red") : trendColor;
+
+ let prob = 50 + trendScore - (exhaustion?10:0);
+ prob=Math.max(30,Math.min(90,prob));
+
+ let conf=prob>=70?"HIGH":prob>=50?"MEDIUM":"LOW";
+
+ let exp=`Trend ${trendColor} (${redCount}/10). `;
+ exp+= exhaustion?"Streak exhaustion detected. ":"";
+ exp+=`Final decision adjusted.`;
+
+ return {
+  color:finalColor,
+  num:Math.floor(Math.random()*10),
+  conf:conf,
+  prob:prob,
+  exp:exp
+ };
+}
+
+let currentAI=aiPredict();
+updateAI();
+
+function updateAI(){
+ currentAI=aiPredict();
+ document.getElementById("aiColor").innerText=currentAI.color;
+ document.getElementById("aiNumber").innerText=currentAI.num;
+ document.getElementById("aiConf").innerText=currentAI.conf;
+ document.getElementById("aiProb").innerText=currentAI.prob+"%";
+ document.getElementById("confExplain").innerText=currentAI.exp;
+}
+
+function submitResult(){
+ let ai=currentAI;
+ let colorWin=ai.color===selectedColor;
+ let numWin=ai.num===selectedNumber;
+
+ history.unshift({
+  sr:serial,
+  aiColor:ai.color,
+  resColor:selectedColor,
+  cWin:colorWin,
+  aiNum:ai.num,
+  resNum:selectedNumber,
+  nWin:numWin,
+  conf:ai.conf
+ });
+
+ accTrend.push(colorWin?1:0);
+ if(accTrend.length>20) accTrend.shift();
+
+ data.push({color:selectedColor});
+
+ serial++;
+ document.getElementById("serialInput").value=serial;
+
+ selectedColor=null;
+ selectedNumber=null;
+
+ renderHistory();
+ drawChart();
+ updateAI();
+}
+
+function renderHistory(){
+ let h=document.getElementById("history");
+ h.innerHTML="";
+ history.slice(0,20).forEach(r=>{
+   h.innerHTML+=`
+   <tr>
+   <td>${r.sr}</td>
+   <td>${r.aiColor}</td>
+   <td>${r.resColor}</td>
+   <td class="${r.cWin?"win":"loss"}">${r.cWin?"Win":"Loss"}</td>
+   <td>${r.aiNum}</td>
+   <td>${r.resNum}</td>
+   <td class="${r.nWin?"win":"loss"}">${r.nWin?"Win":"Loss"}</td>
+   <td>${r.conf}</td>
+   </tr>`;
+ });
+}
+
+function drawChart(){
+ let c=document.getElementById("accChart");
+ let ctx=c.getContext("2d");
+ ctx.clearRect(0,0,c.width,c.height);
+ ctx.beginPath();
+ ctx.moveTo(0,100);
+ accTrend.forEach((v,i)=>{
+   ctx.lineTo(i*(300/20),100-(v*80));
+ });
+ ctx.strokeStyle="#2563eb";
+ ctx.stroke();
+}
+
+let nums="";
+for(let i=0;i<=9;i++){
+ nums+=`<button class="btn numBtn" onclick="pickNumber(${i})">${i}</button>`;
+}
+document.getElementById("numBtns").innerHTML=nums;
+</script>
+
+</body>
+</html>
