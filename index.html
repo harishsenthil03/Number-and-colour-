@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>AI Color & Number Predictor – World Logic</title>
+
+<style>
+body{font-family:Arial;background:#f1f5f9;padding:10px}
+.card{background:#fff;padding:12px;margin-bottom:12px;border-radius:8px}
+button{padding:8px 12px;margin:4px;border-radius:6px;border:none;font-weight:bold}
+.red{background:#ef4444;color:#fff}
+.green{background:#22c55e;color:#fff}
+.blue{background:#3b82f6;color:#fff}
+.yellow{background:#facc15}
+.black{background:#000;color:#fff}
+.white{background:#9ca3af;color:#fff}
+.win{color:green;font-weight:bold}
+.loss{color:red;font-weight:bold}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{border:1px solid #ccc;padding:4px;text-align:center}
+th{background:#eee}
+.bar{height:10px;background:#22c55e}
+</style>
+</head>
+
+<body>
+
+<h2>🌍 World-Level AI Color + Number Analyzer</h2>
+
+<div class="card">
+Serial #: <input id="serial" type="number" value="1">
+<button onclick="setSerial()">SET</button>
+AutoBet:
+<button onclick="toggleAuto()" id="autoBtn">OFF</button>
+</div>
+
+<div class="card">
+<b>AI COLOR:</b> <span id="aiColor">-</span><br>
+<b>AI NUMBER:</b> <span id="aiNumber">-</span><br>
+<b>CONFIDENCE:</b> <span id="conf">-</span><br>
+<b>WHY:</b> <span id="why">-</span>
+</div>
+
+<div class="card">
+<h4>🎯 One Tap Result Input</h4>
+<div>
+<button class="red" onclick="pickColor('Red')">Red</button>
+<button class="green" onclick="pickColor('Green')">Green</button>
+</div>
+<div>
+<button onclick="pickNumber(n)" id="numBtns"></button>
+</div>
+</div>
+
+<div class="card">
+<h4>📈 Accuracy</h4>
+Color: <span id="colorAcc">0%</span>
+<div class="bar" id="colorBar"></div>
+<br>
+Number: <span id="numAcc">0%</span>
+<div class="bar" id="numBar"></div>
+</div>
+
+<div class="card">
+<h4>📜 HISTORY</h4>
+<table>
+<thead>
+<tr>
+<th>Sr</th><th>AI C</th><th>Res C</th><th>C</th>
+<th>AI N</th><th>Res N</th><th>N</th>
+</tr>
+</thead>
+<tbody id="hist"></tbody>
+</table>
+</div>
+
+<script>
+let serial=1,auto=false;
+let data=[];
+let ai={},pickedColor=null,pickedNumber=null;
+let cWin=0,cTot=0,nWin=0,nTot=0;
+
+for(let i=0;i<=9;i++){
+document.getElementById("numBtns").innerHTML+=
+`<button onclick="pickNumber(${i})">${i}</button>`;
+}
+
+function setSerial(){
+serial=Number(document.getElementById("serial").value);
+}
+
+function toggleAuto(){
+auto=!auto;
+document.getElementById("autoBtn").innerText=auto?"ON":"OFF";
+}
+
+function analyze(){
+let last=data.slice(-20);
+let reds=last.filter(x=>x.color=="Red").length;
+let greens=last.length-reds;
+let color=greens>=reds?"Green":"Red";
+
+let freq=[0,0,0,0,0,0,0,0,0,0];
+last.forEach(x=>freq[x.num]++);
+let num=freq.indexOf(Math.min(...freq));
+
+let conf=Math.min(90,40+Math.abs(greens-reds)*5);
+let why=`${color} dominant (${greens}:${reds}), Number ${num} least appeared`;
+
+ai={color,num,conf,why};
+
+document.getElementById("aiColor").innerText=color;
+document.getElementById("aiNumber").innerText=num;
+document.getElementById("conf").innerText=conf+"%";
+document.getElementById("why").innerText=why;
+}
+
+function pickColor(c){pickedColor=c;checkSubmit();}
+function pickNumber(n){pickedNumber=n;checkSubmit();}
+
+function checkSubmit(){
+if(pickedColor!=null && pickedNumber!=null){
+submitResult();
+pickedColor=null;pickedNumber=null;
+}
+}
+
+function submitResult(){
+let cRes=pickedColor;
+let nRes=pickedNumber;
+
+let cW=ai.color==cRes;
+let nW=ai.num==nRes;
+
+cTot++; nTot++;
+if(cW)cWin++;
+if(nW)nWin++;
+
+data.push({color:cRes,num:nRes});
+
+document.getElementById("hist").innerHTML=
+`<tr>
+<td>${serial}</td>
+<td>${ai.color}</td>
+<td>${cRes}</td>
+<td class="${cW?'win':'loss'}">${cW?'W':'L'}</td>
+<td>${ai.num}</td>
+<td>${nRes}</td>
+<td class="${nW?'win':'loss'}">${nW?'W':'L'}</td>
+</tr>`+document.getElementById("hist").innerHTML;
+
+serial++;
+document.getElementById("serial").value=serial;
+
+updateAcc();
+analyze();
+}
+
+function updateAcc(){
+let ca=((cWin/cTot)*100||0).toFixed(1);
+let na=((nWin/nTot)*100||0).toFixed(1);
+document.getElementById("colorAcc").innerText=ca+"%";
+document.getElementById("numAcc").innerText=na+"%";
+document.getElementById("colorBar").style.width=ca+"%";
+document.getElementById("numBar").style.width=na+"%";
+}
+
+analyze();
+</script>
+
+</body>
+</html>
